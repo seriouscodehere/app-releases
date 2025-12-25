@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Profile Photo API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    input {
+      padding: 6px;
+      margin-right: 8px;
+    }
+    button {
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    img {
+      display: block;
+      margin-top: 20px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 1px solid #ccc;
+    }
+    pre {
+      margin-top: 10px;
+      background: #f4f4f4;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h3>Test Profile Photo API</h3>
+
+  <input id="uid" placeholder="uid" value="fgr5e34">
+  <input id="username" placeholder="username" value="adeel">
+  <button onclick="loadProfilePhoto()">Fetch Profile Photo</button>
+
+  <pre id="response"></pre>
+  <img id="profileImage" />
+
+  <script>
+    async function loadProfilePhoto() {
+      const uid = document.getElementById("uid").value.trim()
+      const username = document.getElementById("username").value.trim()
+
+      const url = `http://localhost:8090/api/profile-photo?uid=${encodeURIComponent(uid)}&username=${encodeURIComponent(username)}`
+
+      document.getElementById("response").textContent = "Loading..."
+
+      try {
+        const res = await fetch(url)
+        const data = await res.json()
+
+        document.getElementById("response").textContent = JSON.stringify(data, null, 2)
+
+        if (data.url) {
+          document.getElementById("profileImage").src = data.url
+        }
+      } catch (err) {
+        document.getElementById("response").textContent = err.toString()
+      }
+    }
+  </script>
+
+</body>
+</html>

@@ -1,6 +1,7 @@
 package profile_image_upload_controller
 
 import (
+	"database/sql"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+var DB *sql.DB
+
+func SetDB(db *sql.DB) {
+	DB = db
+}
 
 var allowedFormats = map[string]bool{
 	".jpg":  true,
@@ -55,38 +62,54 @@ func uploadImage(c *gin.Context, imageType string) {
 	finalPath := filepath.Join(saveDir, finalFileName)
 	tempPath := finalPath + ".tmp"
 
-	// save new image to temp file first
 	if err := c.SaveUploadedFile(file, tempPath); err != nil {
 		os.Remove(tempPath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save image"})
 		return
 	}
 
-	// delete all existing images except temp
-	files, err := os.ReadDir(saveDir)
-	if err != nil {
-		os.Remove(tempPath)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read directory"})
-		return
-	}
-
+	files, _ := os.ReadDir(saveDir)
 	for _, f := range files {
 		if f.Name() != filepath.Base(tempPath) {
 			_ = os.Remove(filepath.Join(saveDir, f.Name()))
 		}
 	}
 
-	// rename temp to final
 	if err := os.Rename(tempPath, finalPath); err != nil {
 		os.Remove(tempPath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to finalize image"})
 		return
 	}
 
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+
+	baseURL := scheme + "://" + c.Request.Host
+	imageURL := baseURL + "/media/" + uid + "/" + username + "/" + imageType + "/" + finalFileName
+
+	_, err = DB.Exec(`
+	INSERT INTO user_profile_images (uid, username, image_type, file_name, url)
+	VALUES (?, ?, ?, ?, ?)
+	ON CONFLICT(uid, image_type)
+	DO UPDATE SET
+		file_name = excluded.file_name,
+		url = excluded.url,
+		updated_at = CURRENT_TIMESTAMP
+    `,
+		uid, username, imageType, finalFileName, imageURL,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save metadata"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "upload successful",
 		"file":    finalFileName,
-		"url":     "/media/" + uid + "/" + username + "/" + imageType + "/" + finalFileName,
+		"url":     imageURL,
 	})
 }
 
